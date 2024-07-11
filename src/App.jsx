@@ -7,7 +7,7 @@ const App = () => {
   const [activeTab, setActiveTab] = useState("tab1");
 
   return (
-    <div className="flex justify-center items-center min-h-screen">
+    <div className="flex justify-center pt-8 min-h-screen">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="tab1">Chord Progressions</TabsTrigger>
