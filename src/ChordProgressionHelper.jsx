@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Progression, Voicing, VoiceLeading, VoicingDictionary } from "tonal";
+import {
+  Progression,
+  Voicing,
+  VoiceLeading,
+  VoicingDictionary,
+  Midi,
+} from "tonal";
 
 const ChordProgressionHelper = () => {
   const [selectedKey, setSelectedKey] = useState("C");
@@ -7,6 +13,7 @@ const ChordProgressionHelper = () => {
   const [currentChordIndex, setCurrentChordIndex] = useState(null);
   const [progressionVoicings, setProgressionVoicings] = useState([]);
   const [currentVoicingIndex, setCurrentVoicingIndex] = useState(0);
+  const [allProgressions, setAllProgressions] = useState([]);
 
   const keys = [
     "C",
@@ -15,7 +22,7 @@ const ChordProgressionHelper = () => {
     "A",
     "E",
     "B",
-    "Gb",
+    "F#",
     "Db",
     "Ab",
     "Eb",
@@ -23,12 +30,26 @@ const ChordProgressionHelper = () => {
     "F",
   ];
 
-  const progressions = [
+  const defaultProgressions = [
     { name: "I-V-vi-IV", chords: ["I", "V", "vi", "IV"] },
     { name: "ii-V-I", chords: ["ii", "V", "I"] },
-    { name: "ii7-V7-Imaj7", chords: ["ii7", "V7", "Imaj7"] },
     { name: "Canon", chords: ["I", "V", "vi", "iii", "IV", "I", "IV", "V"] },
   ];
+
+  useEffect(() => {
+    // Load progressions from local storage
+    const loadProgressions = () => {
+      const storedProgressions = localStorage.getItem("customProgressions");
+      if (storedProgressions) {
+        const parsedProgressions = JSON.parse(storedProgressions);
+        setAllProgressions([...defaultProgressions, ...parsedProgressions]);
+      } else {
+        setAllProgressions(defaultProgressions);
+      }
+    };
+
+    loadProgressions();
+  }, []);
 
   const convertRomanNumeral = (numeral, key) => {
     const match = numeral.match(/^(b?[IViv]+)(.*)/);
@@ -107,64 +128,52 @@ const ChordProgressionHelper = () => {
     );
   };
 
-  const PianoKey = ({ note, isActive, isBlack }) => (
-    <div
-      className={`inline-block relative ${
-        isBlack
-          ? "w-8 h-20 -mx-4 z-10 border-black text-white"
-          : "w-10 h-32 border-black"
-      } border ${
-        isActive
-          ? isBlack
-            ? "bg-blue-700"
-            : "bg-blue-200"
-          : isBlack
-          ? "bg-black"
-          : "bg-white"
-      } transition-colors duration-300`}
-    >
-      <span
-        className={`absolute bottom-1 left-1 text-xs ${
-          isBlack ? "text-white" : "text-black"
-        }`}
+  const PianoKey = ({ midiNote, isActive, isBlack }) => {
+    const noteName = Midi.midiToNoteName(midiNote, { sharps: true });
+    return (
+      <div
+        className={`inline-block relative ${
+          isBlack
+            ? "w-8 h-20 -mx-4 z-10 border-black text-white"
+            : "w-10 h-32 border-black"
+        } border ${
+          isActive
+            ? isBlack
+              ? "bg-blue-700"
+              : "bg-blue-200"
+            : isBlack
+            ? "bg-black"
+            : "bg-white"
+        } transition-colors duration-300`}
       >
-        {note}
-      </span>
-    </div>
-  );
+        <span
+          className={`absolute bottom-1 left-1 text-xs ${
+            isBlack ? "text-white" : "text-black"
+          }`}
+        >
+          {noteName}
+        </span>
+      </div>
+    );
+  };
 
-  const Piano = ({ highlightedNotes }) => {
-    const allNotes = [
-      "C",
-      "Db",
-      "D",
-      "Eb",
-      "E",
-      "F",
-      "Gb",
-      "G",
-      "Ab",
-      "A",
-      "Bb",
-      "B",
-    ];
-    const octaves = 3;
+  const Piano = ({ highlightedMidiNotes }) => {
+    const startMidi = Midi.toMidi("C3");
+    const endMidi = Midi.toMidi("B5");
     const keys = [];
 
-    for (let octave = 3; octave < 3 + octaves; octave++) {
-      allNotes.forEach((note) => {
-        const fullNote = `${note}${octave}`;
-        const isBlack = note.includes("b");
-        const isActive = highlightedNotes.includes(fullNote);
-        keys.push(
-          <PianoKey
-            key={fullNote}
-            note={fullNote}
-            isActive={isActive}
-            isBlack={isBlack}
-          />
-        );
-      });
+    for (let midiNote = startMidi; midiNote <= endMidi; midiNote++) {
+      const noteName = Midi.midiToNoteName(midiNote, { sharps: true });
+      const isBlack = noteName.includes("#");
+      const isActive = highlightedMidiNotes.includes(midiNote);
+      keys.push(
+        <PianoKey
+          key={midiNote}
+          midiNote={midiNote}
+          isActive={isActive}
+          isBlack={isBlack}
+        />
+      );
     }
 
     return (
@@ -174,17 +183,19 @@ const ChordProgressionHelper = () => {
     );
   };
 
-  const getChordNotes = (index) => {
+  const getChordMidiNotes = (index) => {
     if (!progressionVoicings || progressionVoicings.length === 0) return [];
     const currentProgression = progressionVoicings[currentVoicingIndex];
     if (!currentProgression) return [];
-    return currentProgression[index] || [];
+    return currentProgression[index]?.map((note) => Midi.toMidi(note)) || [];
   };
 
-  const formatChordNotes = (notes) => {
-    if (!Array.isArray(notes) || notes.length === 0)
+  const formatChordNotes = (midiNotes) => {
+    if (!Array.isArray(midiNotes) || midiNotes.length === 0)
       return "No notes available";
-    return notes.join(", ");
+    return midiNotes
+      .map((midi) => Midi.midiToNoteName(midi, { sharps: true }))
+      .join(", ");
   };
 
   return (
@@ -214,7 +225,7 @@ const ChordProgressionHelper = () => {
             Chord Progressions:
           </h2>
           <div className="flex flex-wrap justify-center">
-            {progressions.map((prog) => (
+            {allProgressions.map((prog) => (
               <button
                 key={prog.name}
                 onClick={() => handleProgressionSelect(prog)}
@@ -243,7 +254,7 @@ const ChordProgressionHelper = () => {
               >
                 <div>{chord}</div>
                 <div className="text-sm text-gray-600">
-                  {formatChordNotes(getChordNotes(index))}
+                  {formatChordNotes(getChordMidiNotes(index))}
                 </div>
               </button>
             ))}
@@ -275,8 +286,10 @@ const ChordProgressionHelper = () => {
             Piano Visualization:
           </h2>
           <Piano
-            highlightedNotes={
-              currentChordIndex !== null ? getChordNotes(currentChordIndex) : []
+            highlightedMidiNotes={
+              currentChordIndex !== null
+                ? getChordMidiNotes(currentChordIndex)
+                : []
             }
           />
         </div>
